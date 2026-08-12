@@ -8,8 +8,9 @@ import { useSelector } from 'react-redux';
 import Splash from '../screens/splash/Splash';
 import BottomTabNav from './BottomTabNav';
 import Signin from '../screens/authScreens/Signin';
-import Attendence from '../screens/tabScreens/Attendance';
+import CaptureEvidence from '../screens/tabScreens/CaptureEvidence';
 import { useAppTheme } from '../themes/ThemeContext';
+import RegisterComplaint from '../screens/tabScreens/RegisterComplaint';
 const Stack = createStackNavigator();
 export default function StackNav() {
   const AuthReducer = useSelector(state => state.AuthReducer);
@@ -37,7 +38,8 @@ export default function StackNav() {
   };
   const mainScreens = {
     BottomTabNav: BottomTabNav,
-    Attendence:Attendence
+    CaptureEvidence:CaptureEvidence,
+    RegisterComplaint:RegisterComplaint
   };
   if (AuthReducer?.isLoading) {
     return <Splash />;

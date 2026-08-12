@@ -10,10 +10,8 @@ import Home from '../screens/tabScreens/Home';
 import MyProfile from '../screens/tabScreens/MyProfile';
 import { Colors, Images } from '../themes/ThemePath';
 import normalize from '../utils/helpers/normalize';
-import ActiveTask from '../screens/tabScreens/ActiveTask';
-import Leave from '../screens/tabScreens/Leave';
-import AttendenceReport from '../screens/tabScreens/AttendenceReport';
 import { useAppTheme } from '../themes/ThemeContext';
+import ChallanList from '../screens/tabScreens/ChallanList';
 
 const Tab = createBottomTabNavigator();
 
@@ -41,9 +39,21 @@ const TabButton = ({ children, onPress, onLongPress, accessibilityState, routeNa
 };
 
 const TabIcon = ({ focused, source, isCenterTab }) => (
-  <View style={[styles.iconShell, isCenterTab && styles.centerIconShell, focused && styles.iconShellFocused]}>
+  <View
+    style={[
+      styles.iconShell,
+      isCenterTab && styles.centerIconShell,
+      focused && !isCenterTab && styles.iconShellFocused,
+    ]}
+  >
     <Image
-      style={[styles.tabIcon, isCenterTab && styles.centerIcon, focused && styles.focusedIcon]}
+      style={[
+        styles.tabIcon,
+        isCenterTab && styles.centerIcon,
+        !isCenterTab && {
+          tintColor: focused ? Colors.white : '#808080',
+        },
+      ]}
       source={source}
       resizeMode="contain"
     />
@@ -71,27 +81,17 @@ const BottomTabNav = () => {
       }}
     >
       <Tab.Screen
-        name="AttendenceReport"
-        component={AttendenceReport}
+        name="ChallanList"
+        component={ChallanList}
         options={{
           unmountOnBlur: true,
-          tabBarButton: props => <TabButton {...props} routeName="AttendenceReport" />,
+          tabBarButton: props => <TabButton {...props} routeName="ChallanList" />,
           tabBarIcon: ({ focused }) => (
             <TabIcon focused={focused} source={Images.tab6} />
           ),
         }}
       />
-      <Tab.Screen
-        name="Leave"
-        component={Leave}
-        options={{
-          unmountOnBlur: true,
-          tabBarButton: props => <TabButton {...props} routeName="Leave" />,
-          tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} source={Images.tab2} />
-          ),
-        }}
-      />
+
       <Tab.Screen
         name="Home"
         component={Home}
@@ -104,17 +104,7 @@ const BottomTabNav = () => {
         }}
       />
 
-      <Tab.Screen
-        name="ActiveTask"
-        component={ActiveTask}
-        options={{
-          unmountOnBlur: true,
-          tabBarButton: props => <TabButton {...props} routeName="ActiveTask" />,
-          tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} source={Images.tab3} />
-          ),
-        }}
-      />
+     
 
       <Tab.Screen
         name="MyProfile"
@@ -135,105 +125,106 @@ export default BottomTabNav;
 
 const styles = StyleSheet.create({
   tabBarStyle: {
-    borderTopWidth: 0,
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    borderRadius: normalize(28),
-    height: normalize(78),
     position: 'absolute',
+
     left: normalize(12),
     right: normalize(12),
     bottom: normalize(10),
-    paddingHorizontal: normalize(10),
-    paddingTop: normalize(10),
-    paddingBottom: normalize(10),
+
+    height: normalize(72),
+
+    borderRadius: normalize(28),
+    borderWidth: 1,
+
+    paddingHorizontal: normalize(8),
+    paddingVertical: normalize(8),
+
     shadowColor: '#0F1B2D',
     shadowOffset: {
       width: 0,
-      height: 14,
+      height: 10,
     },
     shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(6,72,91,0.06)',
+    shadowRadius: 18,
+
+    elevation: 12,
   },
-  iconShell: {
-    width: normalize(42),
-    height: normalize(42),
-    borderRadius: normalize(14),
-    backgroundColor: 'rgba(6,72,91,0.06)',
+
+  tabButtonWrap: {
+    flex: 1,
+    height: '100%',
+
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  tabButtonPressed: {
+    transform: [{ scale: 0.94 }],
+  },
+
+  // LEFT + RIGHT TAB ICON
+  iconShell: {
+    top:8,
+    width: normalize(42),
+    height: normalize(42),
+
+    borderRadius: normalize(14),
+
+    backgroundColor: 'rgba(6,72,91,0.06)',
+
+    alignItems: 'center',
+    justifyContent: 'center',
+
     borderWidth: 1,
     borderColor: 'rgba(6,72,91,0.04)',
   },
+
+  // Selected LEFT + RIGHT tab
   iconShellFocused: {
     backgroundColor: Colors.skyblue,
     borderColor: Colors.skyblue,
+
     shadowColor: Colors.skyblue,
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
     shadowOpacity: 0.25,
     shadowRadius: 12,
+
     elevation: 6,
   },
+
   tabIcon: {
-    height: normalize(20),
     width: normalize(20),
-    tintColor: '#748094',
+    height: normalize(20),
   },
-  focusedIcon: {
-    tintColor: Colors.white,
-  },
+
+  /*
+   * HOME / CENTER TAB
+   * No background
+   * No border
+   * No shadow
+   */
   centerIconShell: {
-    width: normalize(54),
-    height: normalize(54),
-    borderRadius: normalize(18),
-    backgroundColor: 'rgba(6,72,91,0.08)',
+    width: normalize(50),
+    height: normalize(50),
+
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    borderRadius: 0,
+
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    shadowOpacity: 0,
+    elevation: 0,
   },
+
   centerIcon: {
-    height: normalize(24),
-    width: normalize(24),
-  },
-  tabButtonWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabButtonFocused: {
-    transform: [{ translateY: -4 }],
-  },
-  tabButtonPressed: {
-    transform: [{ translateY: -10 }, { scale: 0.96 }],
-  },
-  centerButtonLift: {
-    top: normalize(-10),
-  },
-  centerButton: {
-    width: normalize(62),
-    height: normalize(62),
-    borderRadius: normalize(20),
-    backgroundColor: 'rgba(6,72,91,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(6,72,91,0.08)',
-    shadowColor: '#0F1B2D',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
-    elevation: 8,
-  },
-  centerButtonFocused: {
-    backgroundColor: 'rgba(6,72,91,0.12)',
-    borderColor: 'rgba(6,72,91,0.1)',
-  },
-  centerButtonPressed: {
-    transform: [{ translateY: -4 }, { scale: 0.94 }],
-  },
-  centerButtonInner: {
-    width: '100%',
-    height: '100%',
-    borderRadius: normalize(18),
-    backgroundColor: Colors.skyblue,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: normalize(80),
+    height: normalize(80),
+    bottom:10,
+    
   },
 });

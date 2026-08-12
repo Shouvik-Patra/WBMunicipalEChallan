@@ -34,9 +34,9 @@ const Signin = props => {
   const { colors } = useAppTheme();
 
 
-  const [phone, setPhone] = useState(''); 
+  const [phone, setPhone] = useState('6290160033'); 
   const [secure1, setSecure1] = useState(true);
-  const [password, setPassword] = useState(''); //
+  const [password, setPassword] = useState('123456'); //
   const [keyboardShown, setKeyboardShown] = useState(false);
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const [loading, setLoading] = useState(false);

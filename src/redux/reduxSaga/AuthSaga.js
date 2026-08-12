@@ -34,7 +34,7 @@ export function* signinSaga(action) {
   try {
     let response = yield call(
       postApi,
-      'auth/loginForApp',
+      'surveyOfficerLogin',
       action.payload,
       header,
     );
