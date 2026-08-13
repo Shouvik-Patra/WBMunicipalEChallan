@@ -6,21 +6,20 @@ import {
   Text,
   Animated,
   Easing,
-  Image,
 } from 'react-native';
 import PropTypes from 'prop-types';
-import { Colors, Images } from '../../themes/ThemePath';
+import LottieView from 'lottie-react-native';
+import { Colors } from '../../themes/ThemePath';
 import { useAppTheme } from '../../themes/ThemeContext';
 
 export default function Loader({ visible, text }) {
   const { colors } = useAppTheme();
   const rippleAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const lottieRef = useRef(null);
 
   useEffect(() => {
     let rippleAnimation;
-    let rotationLoop;
 
     if (visible) {
       Animated.timing(fadeAnim, {
@@ -40,16 +39,7 @@ export default function Loader({ visible, text }) {
       );
       rippleAnimation.start();
 
-      rotateAnim.setValue(0);
-      rotationLoop = Animated.loop(
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 4000,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-      );
-      rotationLoop.start();
+      lottieRef.current?.play();
     } else {
       Animated.timing(fadeAnim, {
         toValue: 0,
@@ -57,12 +47,11 @@ export default function Loader({ visible, text }) {
         useNativeDriver: true,
       }).start();
       rippleAnim.stopAnimation();
-      rotateAnim.stopAnimation();
+      lottieRef.current?.pause();
     }
 
     return () => {
       if (rippleAnimation) rippleAnimation.stop();
-      if (rotationLoop) rotationLoop.stop();
     };
   }, [visible]);
 
@@ -76,11 +65,6 @@ export default function Loader({ visible, text }) {
   const rippleOpacity = rippleAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0.6, 0],
-  });
-
-  const spin = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
   });
 
   return visible ? (
@@ -113,13 +97,14 @@ export default function Loader({ visible, text }) {
             transform: [{ scale: rippleScale }],
           }}
         />
-        <Animated.Image
-          source={Images.earth}
+        <LottieView
+          ref={lottieRef}
+          source={require('../../assets/loading.json')}
+          autoPlay
+          loop
           style={{
             width: 200,
             height: 200,
-            resizeMode: 'contain',
-            transform: [{ rotate: spin }],
           }}
         />
       </View>

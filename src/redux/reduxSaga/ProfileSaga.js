@@ -113,19 +113,19 @@ export function* createEChallanSaga(action) {
     );
     console.log('Challan Create response:', response);
 
-    if (response?.data?.meta?.code == 200) {
+    if (response?.data?.meta?.code == 201) {
       yield put(createEChallanSuccess(response?.data?.data));
       // showErrorAlert(response?.data?.meta?.message);
       ShowMessage(response?.data?.meta?.message, 'success');
     } else {
       yield put(createEChallanFailure(response?.data?.data));
       // showErrorAlert(response?.data?.meta?.message);
-      console.log('Clock-in error:', response?.data?.meta?.message);
+      console.log('Challan Create Failure:', response?.data?.meta?.message);
       
       ShowMessage(response?.data?.meta?.message, 'error');
     }
   } catch (error) {
-    console.log("clock in error",error);
+    console.log("Challan Create Error:", error);
     
     yield put(createEChallanFailure(error?.response?.data));
     // showErrorAlert(error?.response?.data?.meta?.message);

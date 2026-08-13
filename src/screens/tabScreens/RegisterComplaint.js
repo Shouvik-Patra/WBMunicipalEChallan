@@ -25,7 +25,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
 import { useIsFocused } from '@react-navigation/native';
 import { createEChallanRequest } from '../../redux/reducer/ProfileReducer';
-
+let status = '';
 // ─── Helpers ────────────────────────────────────────────────────────────────
 // Builds the multipart file entry RN's FormData expects for a local file URI.
 const toFormDataFile = (uri, index) => {
@@ -97,7 +97,10 @@ const RegisterComplaint = props => {
       case 'Complaint/registerComplaintFailure':
         setLoading(false);
         setLoadingMessage('');
-        showErrorAlert(ComplaintReducer?.error || 'Failed to register complaint. Please try again.');
+        showErrorAlert(
+          ComplaintReducer?.error ||
+            'Failed to register complaint. Please try again.',
+        );
         break;
       default:
         break;
@@ -124,7 +127,9 @@ const RegisterComplaint = props => {
       });
       setErrors(prev => ({ ...prev, multiple_images: undefined }));
     } catch (error) {
-      showErrorAlert(error.message || 'Failed to attach photo. Please try again.');
+      showErrorAlert(
+        error.message || 'Failed to attach photo. Please try again.',
+      );
     }
   };
 
@@ -135,7 +140,8 @@ const RegisterComplaint = props => {
   const validate = () => {
     const next = {};
     if (!selectedOffence) next.offense_id = 'Select an offence type';
-    if (!images.length) next.multiple_images = 'Attach at least one evidence photo';
+    if (!images.length)
+      next.multiple_images = 'Attach at least one evidence photo';
     if (!offenderName.trim()) next.offender_name = 'Offender name is required';
     if (!offenderPhone.trim()) next.offender_phone = 'Phone number is required';
     else if (!isValidPhone(offenderPhone))
@@ -148,7 +154,9 @@ const RegisterComplaint = props => {
   const handleSubmit = useCallback(async () => {
     if (!validate()) return;
 
-    const online = await connectionrequest().then(() => true).catch(() => false);
+    const online = await connectionrequest()
+      .then(() => true)
+      .catch(() => false);
     if (!online) {
       showErrorAlert('Please connect to internet');
       return;
@@ -182,6 +190,26 @@ const RegisterComplaint = props => {
     images,
   ]);
 
+  if (status === '' || ProfileReducer.status !== status) {
+    switch (ProfileReducer.status) {
+      case 'Profile/createEChallanRequest':
+        status = ProfileReducer.status;
+        console.log("Hello 1");
+        
+        setLoading(true);
+        break;
+      case 'Profile/createEChallanSuccess':
+        status = ProfileReducer.status;
+        props.navigation.navigate('BottomTabNav', { screen: 'ChallanList' });
+
+        setLoading(false);
+        break;
+      case 'Profile/createEChallanFailure':
+        status = ProfileReducer.status;
+        setLoading(false);
+        break;
+    }
+  }
   return (
     <View style={s.root}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.navy} />
@@ -196,10 +224,23 @@ const RegisterComplaint = props => {
       <Loader visible={loading} loadingText={loadingMessage || 'Loading...'} />
 
       {/* ── Fullscreen zoom viewer for evidence photos ── */}
-      <Modal visible={!!fullscreenUri} transparent animationType="fade" onRequestClose={() => setFullscreenUri(null)}>
-        <TouchableOpacity style={s.zoomOverlay} activeOpacity={1} onPress={() => setFullscreenUri(null)}>
-          <Image source={{ uri: fullscreenUri }} style={s.zoomImage} resizeMode="contain" />
-          <Text style={s.zoomClose}>✕  Tap anywhere to close</Text>
+      <Modal
+        visible={!!fullscreenUri}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFullscreenUri(null)}
+      >
+        <TouchableOpacity
+          style={s.zoomOverlay}
+          activeOpacity={1}
+          onPress={() => setFullscreenUri(null)}
+        >
+          <Image
+            source={{ uri: fullscreenUri }}
+            style={s.zoomImage}
+            resizeMode="contain"
+          />
+          <Text style={s.zoomClose}>✕ Tap anywhere to close</Text>
         </TouchableOpacity>
       </Modal>
 
@@ -214,31 +255,53 @@ const RegisterComplaint = props => {
           showsVerticalScrollIndicator={false}
         >
           {/* ── Evidence photos ── */}
-          <Text style={s.label}>Evidence Photos * ({images.length}/{MAX_IMAGES})</Text>
+          <Text style={s.label}>
+            Evidence Photos * ({images.length}/{MAX_IMAGES})
+          </Text>
           <View style={s.imagesRow}>
             {images.map(uri => (
               <View key={uri} style={s.imageThumbWrap}>
-                <TouchableOpacity activeOpacity={0.88} onPress={() => setFullscreenUri(uri)}>
-                  <Image source={{ uri }} style={s.imageThumb} resizeMode="cover" />
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  onPress={() => setFullscreenUri(uri)}
+                >
+                  <Image
+                    source={{ uri }}
+                    style={s.imageThumb}
+                    resizeMode="cover"
+                  />
                 </TouchableOpacity>
-                <TouchableOpacity style={s.imageRemoveBtn} onPress={() => handleRemoveImage(uri)}>
+                <TouchableOpacity
+                  style={s.imageRemoveBtn}
+                  onPress={() => handleRemoveImage(uri)}
+                >
                   <Text style={s.imageRemoveBtnText}>✕</Text>
                 </TouchableOpacity>
               </View>
             ))}
 
             {images.length < MAX_IMAGES && (
-              <TouchableOpacity style={s.imageAddBtn} onPress={handleAddImages} activeOpacity={0.85}>
+              <TouchableOpacity
+                style={s.imageAddBtn}
+                onPress={handleAddImages}
+                activeOpacity={0.85}
+              >
                 <Text style={s.imageAddBtnIcon}>＋</Text>
                 <Text style={s.imageAddBtnText}>Add</Text>
               </TouchableOpacity>
             )}
           </View>
-          {!!errors.multiple_images && <Text style={s.errorText}>{errors.multiple_images}</Text>}
+          {!!errors.multiple_images && (
+            <Text style={s.errorText}>{errors.multiple_images}</Text>
+          )}
 
           {(!!address || hasLocation) && (
             <View style={s.locationCard}>
-              {!!address && <Text style={s.locationAddress} numberOfLines={2}>{address}</Text>}
+              {!!address && (
+                <Text style={s.locationAddress} numberOfLines={2}>
+                  {address}
+                </Text>
+              )}
               <View style={s.locationMetaRow}>
                 {hasLocation && (
                   <Text style={s.locationCoords}>
@@ -246,7 +309,9 @@ const RegisterComplaint = props => {
                   </Text>
                 )}
                 {!!capturedAt && (
-                  <Text style={s.locationTime}>{moment(capturedAt).format('MMM D, h:mm A')}</Text>
+                  <Text style={s.locationTime}>
+                    {moment(capturedAt).format('MMM D, h:mm A')}
+                  </Text>
                 )}
               </View>
             </View>
@@ -406,33 +471,75 @@ const s = StyleSheet.create({
   imagesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: normalize(10) },
   imageThumbWrap: { position: 'relative' },
   imageThumb: {
-    width: normalize(84), height: normalize(84), borderRadius: normalize(10),
-    borderWidth: 1, borderColor: Colors.border,
+    width: normalize(84),
+    height: normalize(84),
+    borderRadius: normalize(10),
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   imageRemoveBtn: {
-    position: 'absolute', top: -normalize(6), right: -normalize(6),
-    width: normalize(20), height: normalize(20), borderRadius: normalize(10),
-    backgroundColor: Colors.red, alignItems: 'center', justifyContent: 'center',
+    position: 'absolute',
+    top: -normalize(6),
+    right: -normalize(6),
+    width: normalize(20),
+    height: normalize(20),
+    borderRadius: normalize(10),
+    backgroundColor: Colors.red,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  imageRemoveBtnText: { color: Colors.white, fontSize: normalize(11), fontFamily: Fonts.MulishExtraBold },
+  imageRemoveBtnText: {
+    color: Colors.white,
+    fontSize: normalize(11),
+    fontFamily: Fonts.MulishExtraBold,
+  },
   imageAddBtn: {
-    width: normalize(84), height: normalize(84), borderRadius: normalize(10),
-    borderWidth: 1.5, borderColor: Colors.border, borderStyle: 'dashed',
-    alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.lightgreybg,
+    width: normalize(84),
+    height: normalize(84),
+    borderRadius: normalize(10),
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.lightgreybg,
   },
   imageAddBtnIcon: { fontSize: normalize(20), color: Colors.mutedText },
-  imageAddBtnText: { fontSize: normalize(10), color: Colors.mutedText, fontFamily: Fonts.MulishSemiBold, marginTop: normalize(2) },
+  imageAddBtnText: {
+    fontSize: normalize(10),
+    color: Colors.mutedText,
+    fontFamily: Fonts.MulishSemiBold,
+    marginTop: normalize(2),
+  },
 
   locationCard: {
-    marginTop: normalize(12), backgroundColor: Colors.card, borderRadius: normalize(12),
-    borderWidth: 1, borderColor: Colors.border, padding: normalize(12),
+    marginTop: normalize(12),
+    backgroundColor: Colors.card,
+    borderRadius: normalize(12),
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: normalize(12),
   },
-  locationAddress: { fontSize: normalize(12), color: Colors.text, fontFamily: Fonts.MulishSemiBold },
+  locationAddress: {
+    fontSize: normalize(12),
+    color: Colors.text,
+    fontFamily: Fonts.MulishSemiBold,
+  },
   locationMetaRow: {
-    flexDirection: 'row', justifyContent: 'space-between', marginTop: normalize(4),
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: normalize(4),
   },
-  locationCoords: { fontSize: normalize(10), color: Colors.mutedText, fontFamily: Fonts.MulishMedium },
-  locationTime: { fontSize: normalize(10), color: Colors.mutedText, fontFamily: Fonts.MulishMedium },
+  locationCoords: {
+    fontSize: normalize(10),
+    color: Colors.mutedText,
+    fontFamily: Fonts.MulishMedium,
+  },
+  locationTime: {
+    fontSize: normalize(10),
+    color: Colors.mutedText,
+    fontFamily: Fonts.MulishMedium,
+  },
 
   label: {
     fontSize: normalize(12),
@@ -566,7 +673,17 @@ const s = StyleSheet.create({
   rowSeparator: { height: 1, backgroundColor: Colors.border },
 
   // ── Zoom viewer ──
-  zoomOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.93)', justifyContent: 'center', alignItems: 'center' },
+  zoomOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.93)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   zoomImage: { width: '95%', height: '80%' },
-  zoomClose: { marginTop: normalize(14), color: '#94a3b8', fontFamily: Fonts.MulishMedium, fontSize: normalize(13) },
+  zoomClose: {
+    marginTop: normalize(14),
+    color: '#94a3b8',
+    fontFamily: Fonts.MulishMedium,
+    fontSize: normalize(13),
+  },
 });

@@ -26,7 +26,36 @@ import {
   razorPayCreateOrderIDRequest,
   verifyPaymentRequest,
 } from '../../redux/reducer/ProfileReducer';
-let status = '';
+
+const PAGE_LIMIT = 10;
+
+// ── Builds a "1 2 … 5 6 7 … 12" style page list ────────────────────────────
+const buildPageList = (current, total) => {
+  const delta = 1;
+  const range = [];
+  const withDots = [];
+  let last;
+
+  for (let i = 1; i <= total; i++) {
+    if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) {
+      range.push(i);
+    }
+  }
+
+  range.forEach(i => {
+    if (last) {
+      if (i - last === 2) {
+        withDots.push(last + 1);
+      } else if (i - last !== 1) {
+        withDots.push('...');
+      }
+    }
+    withDots.push(i);
+    last = i;
+  });
+
+  return withDots;
+};
 
 const ChallanList = ({ navigation }) => {
   const dispatch = useDispatch();
@@ -34,31 +63,30 @@ const ChallanList = ({ navigation }) => {
   const ProfileReducer = useSelector(state => state.ProfileReducer);
 
   const [challans, setChallans] = useState([]);
-
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: PAGE_LIMIT,
+    totalRecords: 0,
+    totalPages: 1,
+  });
   const [refreshing, setRefreshing] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
   const [selectedChallan, setSelectedChallan] = useState(null);
   const [fullscreenUri, setFullscreenUri] = useState(null);
 
   // Payment flow state (Pay Now → create Razorpay order → checkout popup → verify)
   const [paymentStatus, setPaymentStatus] = useState('');
   const [paymentLoading, setPaymentLoading] = useState(false);
-  // The challan currently being paid — set on "Pay Now" tap, cleared once
-  // the payment flow finishes (success, failure, or popup dismissed).
   const [payingItem, setPayingItem] = useState(null);
 
   const isInitialLoading =
     ProfileReducer?.status === 'Profile/challanListRequest' &&
     page === 1 &&
-    !refreshing;
-  const PAGE_LIMIT = 10;
+    !refreshing &&
+    !pageLoading;
 
   // ─── Status → color token mapping ───────────────────────────────────────────
-  // Pulls from the theme so this stays correct in both light and dark mode —
-  // no hardcoded hex anywhere in this file.
   const getStatusToken = status => {
     switch ((status || '').toLowerCase()) {
       case 'paid':
@@ -100,9 +128,9 @@ const ChallanList = ({ navigation }) => {
 
   // ─── Normalize a raw API challan record into a consistent shape ────────────
   // Matches the real /challans response:
-  // { id, challan_no, offender_name, offender_phone, offender_address,
+  // { rows: [{ id, challan_no, offender_name, offender_phone, offender_address,
   //   vehicle_no, latitude, longitude, fine_amount, remarks, payment_status,
-  //   offense_name, created_at, updated_at, images: string[] }
+  //   offense_name, created_at, updated_at, images: string[] }], pagination }
   const normalizeChallan = raw => ({
     id: raw?.id ?? raw?._id,
     challanNo: raw?.challan_no ?? '',
@@ -121,54 +149,127 @@ const ChallanList = ({ navigation }) => {
   });
 
   const isPending = status => (status || '').toLowerCase() === 'pending';
-  // ─── Fetch a page ──────────────────────────────────────────────────
-  const fetchPage = useCallback(
-    targetPage => {
+
+  // ─── Fetch a specific page ──────────────────────────────────────────────────
+  // The backend paginates properly now (page + limit + totalPages), so this
+  // always requests exactly the page we want and REPLACES the list — it's not
+  // an infinite-scroll "load more".
+  const fetchChallans = useCallback(
+    pageToFetch => {
       connectionrequest()
         .then(() =>
-          dispatch(challanListRequest({ page: 1, limit: 500 })),
+          dispatch(challanListRequest({ page: pageToFetch, limit: PAGE_LIMIT })),
         )
         .catch(() => {
           showErrorAlert('Please connect to internet');
           setRefreshing(false);
-          setLoadingMore(false);
+          setPageLoading(false);
         });
     },
-    [isFocused],
+    [dispatch],
   );
 
   const handleRefresh = () => {
     setRefreshing(true);
     setPage(1);
-    fetchPage(1);
+    fetchChallans(1);
   };
 
-  const handleLoadMore = () => {
-    if (loadingMore || refreshing || !hasMore) return;
-    const nextPage = page + 1;
-    setLoadingMore(true);
-    setPage(nextPage);
-    fetchPage(nextPage);
+  // ─── Jump to a given page number ────────────────────────────────────────────
+  const goToPage = targetPage => {
+    const totalPages = pagination.totalPages || 1;
+    if (
+      targetPage < 1 ||
+      targetPage > totalPages ||
+      targetPage === page ||
+      pageLoading ||
+      refreshing
+    ) {
+      return;
+    }
+    setPage(targetPage);
+    setPageLoading(true);
+    fetchChallans(targetPage);
   };
+
+  // ─── Load data when the screen mounts / comes back into focus ─────────────
+  useEffect(() => {
+    if (isFocused) {
+      fetchChallans(page);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFocused, fetchChallans]);
+
+  // ─── React to Redux status changes (single source of truth) ───────────────
+  useEffect(() => {
+    const status = ProfileReducer?.status;
+    if (!status) return;
+
+    switch (status) {
+      case 'Profile/challanListSuccess': {
+        const raw = ProfileReducer?.challanListResponse;
+        console.log("ProfileReducer?.challanListResponse>>",ProfileReducer?.challanListResponse);
+        
+        const list = Array.isArray(raw) ? raw : raw?.rows ?? raw?.data ?? [];
+        setChallans(list.map(normalizeChallan));
+
+        const meta = raw?.pagination;
+        setPagination(prev => ({
+          page: meta?.page ?? page,
+          limit: meta?.limit ?? PAGE_LIMIT,
+          totalRecords: meta?.totalRecords ?? list.length,
+          totalPages: meta?.totalPages ?? prev.totalPages ?? 1,
+        }));
+
+        setRefreshing(false);
+        setPageLoading(false);
+        break;
+      }
+      case 'Profile/challanListFailure':
+        setRefreshing(false);
+        setPageLoading(false);
+        showErrorAlert('Failed to load challans. Pull down to retry.');
+        break;
+
+      // ── Step 1: order created on the server ──
+      case 'Profile/razorPayCreateOrderIDRequest':
+        setPaymentLoading(true);
+        break;
+      case 'Profile/razorPayCreateOrderIDSuccess':
+        openRazorpayCheckout(ProfileReducer?.razorPayCreateOrderIDResponse);
+        break;
+      case 'Profile/razorPayCreateOrderIDFailure':
+        setPaymentLoading(false);
+        setPayingItem(null);
+        showErrorAlert('Payment could not be started. Please try again.');
+        break;
+
+      // ── Steps 5–6 happen server-side; these are the outcomes ──
+      case 'Profile/verifyPaymentSuccess':
+        setPaymentLoading(false);
+        setSelectedChallan(null);
+        setPayingItem(null);
+        handleRefresh(); // reload page 1 so the challan now shows as Paid
+        break;
+      case 'Profile/verifyPaymentFailure':
+        setPaymentLoading(false);
+        setPayingItem(null);
+        showErrorAlert('Payment verification failed. Please contact support.');
+        break;
+      default:
+        break;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ProfileReducer?.status]);
 
   // ─── Pay Now ─────────────────────────────────────────────────────
-  // Step 1 in the flow: ask the server to create a Razorpay order for
-  // this challan. The popup itself opens once the order comes back
-  // (see openRazorpayCheckout, triggered from the reducer-status switch).
   const handlePayNow = item => {
-    const obj = {
-      challan_id: item.id,
-    };
-
     setPayingItem(item);
     connectionrequest()
-      .then(() => dispatch(razorPayCreateOrderIDRequest(obj)))
+      .then(() => dispatch(razorPayCreateOrderIDRequest({ challan_id: item.id })))
       .catch(() => showErrorAlert('Please connect to internet'));
   };
 
-  // Step 2–3 in the flow: open the Razorpay checkout popup using the
-  // order details returned by the server, then hand whatever the popup
-  // resolves with (real payment_id / order_id / signature) to verification.
   const openRazorpayCheckout = orderResponse => {
     if (!orderResponse?.order_id || !orderResponse?.key_id) {
       setPaymentLoading(false);
@@ -192,7 +293,6 @@ const ChallanList = ({ navigation }) => {
 
     RazorpayCheckout.open(options)
       .then(data => {
-        // data = { razorpay_payment_id, razorpay_order_id, razorpay_signature }
         handleVerifyPayment({
           razorpay_order_id: data.razorpay_order_id,
           razorpay_payment_id: data.razorpay_payment_id,
@@ -200,18 +300,15 @@ const ChallanList = ({ navigation }) => {
         });
       })
       .catch(error => {
-        // User closed the popup, or payment failed client-side before
-        // reaching Razorpay's servers.
         setPaymentLoading(false);
         setPayingItem(null);
         showErrorAlert(error?.description || 'Payment was cancelled');
       });
   };
 
-  // Step 4 in the flow: POST the popup's result to the server. Steps 5–6
-  // (recomputing the signature with the secret key and comparing it) happen
-  // entirely server-side inside the verifyPaymentRequest saga — this app
-  // never sees or needs the secret key.
+  // Step 4: POST the popup's result to the server. Steps 5–6 (recomputing
+  // the signature with the secret key and comparing it) happen entirely
+  // server-side inside the verifyPaymentRequest saga.
   const handleVerifyPayment = paymentData => {
     connectionrequest()
       .then(() => dispatch(verifyPaymentRequest(paymentData)))
@@ -230,12 +327,14 @@ const ChallanList = ({ navigation }) => {
     <View style={styles.summaryCard}>
       <View style={styles.summaryHeader}>
         <Text style={styles.summaryEyebrow}>Challans overview</Text>
-        <Text style={styles.summaryTotal}>{challans.length} loaded</Text>
+        <Text style={styles.summaryTotal}>
+          {pagination.totalRecords || challans.length} total
+        </Text>
       </View>
       <View style={styles.statsGrid}>
         <View style={[styles.statCell, { backgroundColor: Colors.card }]}>
           <Text style={[styles.statValue, { color: Colors.primary }]}>
-            {challans.length}
+            {pagination.totalRecords || challans.length}
           </Text>
           <Text style={styles.statLabel}>Total challans</Text>
         </View>
@@ -243,19 +342,19 @@ const ChallanList = ({ navigation }) => {
           <Text style={[styles.statValue, { color: Colors.govGreen }]}>
             {paidCount}
           </Text>
-          <Text style={styles.statLabel}>Paid</Text>
+          <Text style={styles.statLabel}>Paid (this page)</Text>
         </View>
         <View style={[styles.statCell, { backgroundColor: Colors.card }]}>
           <Text style={[styles.statValue, { color: Colors.gold }]}>
             {pendingCount}
           </Text>
-          <Text style={styles.statLabel}>Pending</Text>
+          <Text style={styles.statLabel}>Pending (this page)</Text>
         </View>
         <View style={[styles.statCell, { backgroundColor: Colors.card }]}>
           <Text style={[styles.statValue, { color: Colors.navy }]}>
             ₹{totalFine.toFixed(0)}
           </Text>
-          <Text style={styles.statLabel}>Fine collected</Text>
+          <Text style={styles.statLabel}>Fine (this page)</Text>
         </View>
       </View>
     </View>
@@ -264,8 +363,7 @@ const ChallanList = ({ navigation }) => {
   const renderChallanCard = ({ item }) => {
     const tok = getStatusToken(item.status);
     const pending = isPending(item.status);
-    const isThisItemPaying =
-      paymentLoading && payingItem?.id === item.id;
+    const isThisItemPaying = paymentLoading && payingItem?.id === item.id;
 
     return (
       <TouchableOpacity
@@ -306,9 +404,7 @@ const ChallanList = ({ navigation }) => {
             <Text style={styles.cardFine}>
               ₹{parseFloat(item.fineAmount || 0).toFixed(0)}
             </Text>
-            <View
-              style={[styles.statusBadge, { backgroundColor: tok.badgeBg }]}
-            >
+            <View style={[styles.statusBadge, { backgroundColor: tok.badgeBg }]}>
               <Text style={[styles.statusBadgeText, { color: tok.badgeText }]}>
                 {statusLabel(item.status)}
               </Text>
@@ -334,11 +430,96 @@ const ChallanList = ({ navigation }) => {
     );
   };
 
-  const renderFooter = () => {
-    if (!loadingMore) return null;
+  // ─── Pagination bar: ‹  1  2  …  8  9  › ───────────────────────────────────
+  const renderPagination = () => {
+    const totalPages = pagination.totalPages || 1;
+    console.log("totalPages>>>",totalPages);
+    
+    // if (totalPages <= 1) return null;
+
+    const currentPage = pagination.page || page;
+    const pages = buildPageList(currentPage, totalPages);
+    const disabled = pageLoading || refreshing;
+
     return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator color={Colors.primary} />
+      <View style={styles.paginationBar}>
+        <TouchableOpacity
+          style={[
+            styles.pageArrow,
+            (currentPage === 1 || disabled) && styles.pageArrowDisabled,
+          ]}
+          disabled={currentPage === 1 || disabled}
+          onPress={() => goToPage(currentPage - 1)}
+        >
+          <Text
+            style={[
+              styles.pageArrowText,
+              (currentPage === 1 || disabled) && styles.pageArrowTextDisabled,
+            ]}
+          >
+            ‹
+          </Text>
+        </TouchableOpacity>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.pageNumbersRow}
+        >
+          {pages.map((p, idx) =>
+            p === '...' ? (
+              <Text key={`dots-${idx}`} style={styles.pageDots}>
+                …
+              </Text>
+            ) : (
+              <TouchableOpacity
+                key={p}
+                style={[
+                  styles.pageNumber,
+                  p === currentPage && styles.pageNumberActive,
+                ]}
+                disabled={disabled}
+                onPress={() => goToPage(p)}
+              >
+                <Text
+                  style={[
+                    styles.pageNumberText,
+                    p === currentPage && styles.pageNumberTextActive,
+                  ]}
+                >
+                  {p}
+                </Text>
+              </TouchableOpacity>
+            ),
+          )}
+        </ScrollView>
+
+        <TouchableOpacity
+          style={[
+            styles.pageArrow,
+            (currentPage === totalPages || disabled) && styles.pageArrowDisabled,
+          ]}
+          disabled={currentPage === totalPages || disabled}
+          onPress={() => goToPage(currentPage + 1)}
+        >
+          <Text
+            style={[
+              styles.pageArrowText,
+              (currentPage === totalPages || disabled) &&
+                styles.pageArrowTextDisabled,
+            ]}
+          >
+            ›
+          </Text>
+        </TouchableOpacity>
+
+        {pageLoading && (
+          <ActivityIndicator
+            size="small"
+            color={Colors.primary}
+            style={styles.pageLoadingSpinner}
+          />
+        )}
       </View>
     );
   };
@@ -348,8 +529,7 @@ const ChallanList = ({ navigation }) => {
     const item = selectedChallan;
     const tok = getStatusToken(item.status);
     const pending = isPending(item.status);
-    const isThisItemPaying =
-      paymentLoading && payingItem?.id === item.id;
+    const isThisItemPaying = paymentLoading && payingItem?.id === item.id;
 
     return (
       <Modal
@@ -374,9 +554,7 @@ const ChallanList = ({ navigation }) => {
                   : ''}
               </Text>
             </View>
-            <View
-              style={[styles.statusBadge, { backgroundColor: tok.badgeBg }]}
-            >
+            <View style={[styles.statusBadge, { backgroundColor: tok.badgeBg }]}>
               <Text style={[styles.statusBadgeText, { color: tok.badgeText }]}>
                 {statusLabel(item.status)}
               </Text>
@@ -472,10 +650,7 @@ const ChallanList = ({ navigation }) => {
               onPress={() => setSelectedChallan(null)}
             >
               <Text
-                style={[
-                  styles.doneBtnText,
-                  pending && styles.doneBtnTextSecondary,
-                ]}
+                style={[styles.doneBtnText, pending && styles.doneBtnTextSecondary]}
               >
                 Close
               </Text>
@@ -485,75 +660,7 @@ const ChallanList = ({ navigation }) => {
       </Modal>
     );
   };
-  if (status === '' || ProfileReducer.status !== status) {
-    switch (ProfileReducer.status) {
-      case 'Profile/challanListRequest':
-        status = ProfileReducer.status;
 
-        break;
-      case 'Profile/challanListSuccess':
-        status = ProfileReducer.status;
-        const raw = ProfileReducer?.challanListResponse;
-
-        const list = Array.isArray(raw) ? raw : raw?.rows ?? raw?.data ?? [];
-        const normalized = list.map(normalizeChallan);
-        const meta = raw?.pagination;
-
-        setChallans(prev =>
-          page === 1 ? normalized : [...prev, ...normalized],
-        );
-
-        if (meta) {
-          setTotalPages(meta.totalPages ?? 1);
-          setHasMore((meta.page ?? page) < (meta.totalPages ?? 1));
-        } else {
-          setHasMore(normalized.length >= PAGE_LIMIT);
-        }
-
-        setRefreshing(false);
-        setLoadingMore(false);
-        break;
-      case 'Profile/challanListFailure':
-        status = ProfileReducer.status;
-        setRefreshing(false);
-        setLoadingMore(false);
-        showErrorAlert('Failed to load challans. Pull down to retry.');
-        break;
-
-      // ── Step 1: order created on the server ──
-      case 'Profile/razorPayCreateOrderIDRequest':
-        status = ProfileReducer.status;
-        setPaymentLoading(true);
-        break;
-      case 'Profile/razorPayCreateOrderIDSuccess':
-        status = ProfileReducer.status;
-        // Step 2–3: open the Razorpay checkout popup with the order details.
-        // paymentLoading stays true until the popup resolves or is dismissed.
-        openRazorpayCheckout(ProfileReducer?.razorPayCreateOrderIDResponse);
-        break;
-      case 'Profile/razorPayCreateOrderIDFailure':
-        status = ProfileReducer.status;
-        setPaymentLoading(false);
-        setPayingItem(null);
-        showErrorAlert('Payment could not be started. Please try again.');
-        break;
-
-      // ── Steps 5–6 happen server-side; these are the outcomes ──
-      case 'Profile/verifyPaymentSuccess':
-        status = ProfileReducer.status;
-        setPaymentLoading(false);
-        setSelectedChallan(null);
-        setPayingItem(null);
-        handleRefresh(); // reload list so the challan now shows as Paid
-        break;
-      case 'Profile/verifyPaymentFailure':
-        status = ProfileReducer.status;
-        setPaymentLoading(false);
-        setPayingItem(null);
-        showErrorAlert('Payment verification failed. Please contact support.');
-        break;
-    }
-  }
   return (
     <View style={styles.container}>
       <Header
@@ -590,13 +697,8 @@ const ChallanList = ({ navigation }) => {
         keyExtractor={item => String(item.id)}
         renderItem={renderChallanCard}
         contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={() => (
-          <View style={{ height: normalize(10) }} />
-        )}
+        ItemSeparatorComponent={() => <View style={{ height: normalize(10) }} />}
         ListHeaderComponent={challans.length > 0 ? renderSummary : null}
-        ListFooterComponent={renderFooter}
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.4}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -616,6 +718,8 @@ const ChallanList = ({ navigation }) => {
         }
       />
 
+      {renderPagination()}
+
       {renderDetailModal()}
     </View>
   );
@@ -627,7 +731,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.page },
   listContent: {
     padding: normalize(14),
-    paddingBottom: normalize(120),
+    paddingBottom: normalize(10),
   },
 
   // ── Summary card ──
@@ -757,7 +861,74 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  footerLoader: { paddingVertical: normalize(16) },
+  // ── Pagination bar ──
+  paginationBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: normalize(14),
+    paddingVertical: normalize(10),
+    borderTopWidth: 0.5,
+    borderTopColor: Colors.border,
+    backgroundColor: Colors.card,
+    gap: normalize(8),
+    paddingBottom:normalize(100)
+  },
+  pageArrow: {
+    width: normalize(32),
+    height: normalize(32),
+    borderRadius: normalize(16),
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.lightgreybg2,
+  },
+  pageArrowDisabled: {
+    opacity: 0.4,
+  },
+  pageArrowText: {
+    fontSize: normalize(18),
+    fontFamily: Fonts.MulishExtraBold,
+    color: Colors.primary,
+  },
+  pageArrowTextDisabled: {
+    color: Colors.mutedText,
+  },
+  pageNumbersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: normalize(6),
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  pageNumber: {
+    minWidth: normalize(32),
+    height: normalize(32),
+    borderRadius: normalize(16),
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: normalize(8),
+    backgroundColor: Colors.lightgreybg2,
+  },
+  pageNumberActive: {
+    backgroundColor: Colors.primary,
+  },
+  pageNumberText: {
+    fontSize: normalize(13),
+    fontFamily: Fonts.MulishSemiBold,
+    color: Colors.text,
+  },
+  pageNumberTextActive: {
+    color: Colors.white,
+    fontFamily: Fonts.MulishExtraBold,
+  },
+  pageDots: {
+    fontSize: normalize(13),
+    fontFamily: Fonts.MulishSemiBold,
+    color: Colors.mutedText,
+    marginHorizontal: normalize(2),
+  },
+  pageLoadingSpinner: {
+    marginLeft: normalize(4),
+  },
 
   // ── Detail modal ──
   modalWrap: { justifyContent: 'flex-end', margin: 0 },
