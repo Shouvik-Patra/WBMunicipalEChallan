@@ -24,7 +24,7 @@ import connectionrequest from '../../utils/helpers/NetInfo';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
 import { useIsFocused } from '@react-navigation/native';
-import { createEChallanRequest } from '../../redux/reducer/ProfileReducer';
+import { createEChallanRequest, getWardListRequest } from '../../redux/reducer/ProfileReducer';
 let status = '';
 // ─── Helpers ────────────────────────────────────────────────────────────────
 // Builds the multipart file entry RN's FormData expects for a local file URI.
@@ -59,6 +59,13 @@ const RegisterComplaint = props => {
   const [selectedOffence, setSelectedOffence] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  // ── Ward selection ──
+  // wardList is populated via getWardListRequest(municipality_id) below,
+  // and read back out of ProfileReducer.getWardListResponse in the
+  // status-effect switch further down.
+  const [selectedWard, setSelectedWard] = useState(null);
+  const [wardDropdownOpen, setWardDropdownOpen] = useState(false);
+
   // ── Evidence images (multiple) ──
   // Seeded with the photo handed off from Home/CaptureEvidence; the officer
   // can attach more from the gallery, up to MAX_IMAGES.
@@ -70,6 +77,8 @@ const RegisterComplaint = props => {
   const [offenderAddress, setOffenderAddress] = useState('');
   const [vehicleNo, setVehicleNo] = useState('');
   const [remarks, setRemarks] = useState('');
+  const [wardList, setWardList] = useState([]);
+console.log("wardList",wardList);
 
   const [errors, setErrors] = useState({});
 
@@ -77,7 +86,14 @@ const RegisterComplaint = props => {
     () => typeof latitude === 'number' && typeof longitude === 'number',
     [latitude, longitude],
   );
-
+  useEffect(() => {
+    if (!isFocused) return;
+    connectionrequest()
+      .then(() => {
+        dispatch(getWardListRequest(ProfileReducer?.userDetailsResponse?.municipality_id));
+      })
+      .catch(() => showErrorAlert('Please connect to internet'));
+  }, [isFocused]);
   // ── React to the dispatched request's outcome ──
   // TODO: match these status strings to whatever your saga/reducer actually
   // sets (mirrors the 'Profile/offenceTypesSuccess' pattern used in Home.js).
@@ -140,6 +156,7 @@ const RegisterComplaint = props => {
   const validate = () => {
     const next = {};
     if (!selectedOffence) next.offense_id = 'Select an offence type';
+    if (!selectedWard) next.ward_id = 'Select a ward';
     if (!images.length)
       next.multiple_images = 'Attach at least one evidence photo';
     if (!offenderName.trim()) next.offender_name = 'Offender name is required';
@@ -165,6 +182,7 @@ const RegisterComplaint = props => {
     const formData = new FormData();
 
     formData.append('offense_id', String(selectedOffence.id));
+    formData.append('ward_id', String(selectedWard.id));
     formData.append('offender_name', offenderName.trim());
     formData.append('offender_phone', offenderPhone.trim());
     formData.append('offender_address', offenderAddress.trim());
@@ -180,6 +198,7 @@ const RegisterComplaint = props => {
     dispatch(createEChallanRequest(formData));
   }, [
     selectedOffence,
+    selectedWard,
     offenderName,
     offenderPhone,
     offenderAddress,
@@ -205,6 +224,22 @@ const RegisterComplaint = props => {
         setLoading(false);
         break;
       case 'Profile/createEChallanFailure':
+        status = ProfileReducer.status;
+        setLoading(false);
+        break;
+
+      case 'Profile/getWardListRequest':
+        status = ProfileReducer.status;
+        console.log("Hello 1");
+        
+        setLoading(true);
+        break;
+      case 'Profile/getWardListSuccess':
+        status = ProfileReducer.status;
+        setWardList(ProfileReducer?.getWardListResponse);
+        setLoading(false);
+        break;
+      case 'Profile/getWardListFailure':
         status = ProfileReducer.status;
         setLoading(false);
         break;
@@ -340,6 +375,24 @@ const RegisterComplaint = props => {
             <Text style={s.errorText}>{errors.offense_id}</Text>
           )}
 
+          {/* ── Ward dropdown ── */}
+          <Text style={s.label}>Ward *</Text>
+          <TouchableOpacity
+            style={[s.dropdownField, errors.ward_id && s.fieldError]}
+            activeOpacity={0.85}
+            onPress={() => setWardDropdownOpen(true)}
+          >
+            {selectedWard ? (
+              <Text style={s.dropdownValueText}>Ward {selectedWard.name}</Text>
+            ) : (
+              <Text style={s.dropdownPlaceholder}>Select ward</Text>
+            )}
+            <Text style={s.dropdownChevron}>▾</Text>
+          </TouchableOpacity>
+          {!!errors.ward_id && (
+            <Text style={s.errorText}>{errors.ward_id}</Text>
+          )}
+
           {/* ── Offender details ── */}
           <Text style={s.label}>Offender Name *</Text>
           <TextInput
@@ -359,6 +412,7 @@ const RegisterComplaint = props => {
             placeholder="e.g. 9812345678"
             placeholderTextColor={Colors.mutedText}
             keyboardType="phone-pad"
+            maxLength={10}
             value={offenderPhone}
             onChangeText={setOffenderPhone}
           />
@@ -447,6 +501,50 @@ const RegisterComplaint = props => {
                 </TouchableOpacity>
               )}
               ItemSeparatorComponent={() => <View style={s.rowSeparator} />}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Ward picker modal ── */}
+      <Modal
+        visible={wardDropdownOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setWardDropdownOpen(false)}
+      >
+        <TouchableOpacity
+          style={s.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setWardDropdownOpen(false)}
+        >
+          <View style={s.modalSheet}>
+            <View style={s.modalHandle} />
+            <Text style={s.modalTitle}>Select Ward</Text>
+            <FlatList
+              data={wardList}
+              keyExtractor={item => String(item.id)}
+              numColumns={4}
+              style={{ maxHeight: normalize(420) }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={s.wardCell}
+                  onPress={() => {
+                    setSelectedWard(item);
+                    setErrors(prev => ({ ...prev, ward_id: undefined }));
+                    setWardDropdownOpen(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      s.wardCellText,
+                      selectedWard?.id === item.id && s.wardCellTextActive,
+                    ]}
+                  >
+                    {item.name}
+                  </Text>
+                </TouchableOpacity>
+              )}
             />
           </View>
         </TouchableOpacity>
@@ -671,6 +769,27 @@ const s = StyleSheet.create({
     marginLeft: normalize(10),
   },
   rowSeparator: { height: 1, backgroundColor: Colors.border },
+
+  // ── Ward picker grid ──
+  wardCell: {
+    flex: 1,
+    margin: normalize(5),
+    paddingVertical: normalize(12),
+    borderRadius: normalize(10),
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wardCellText: {
+    fontSize: normalize(13),
+    color: Colors.text,
+    fontFamily: Fonts.MulishSemiBold,
+  },
+  wardCellTextActive: {
+    color: Colors.primary,
+    fontFamily: Fonts.MulishExtraBold,
+  },
 
   // ── Zoom viewer ──
   zoomOverlay: {

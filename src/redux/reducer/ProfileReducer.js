@@ -10,7 +10,7 @@ const initialState = {
   challanListResponse: {},
   razorPayCreateOrderIDResponse: {},
   verifyPaymentResponse: {},
-  
+  paybyCashResponse: {},
 };
 
 const ProfileSlice = createSlice({
@@ -51,7 +51,7 @@ const ProfileSlice = createSlice({
       state.error = action.error;
       state.status = action.type;
     },
-    
+
     challanListRequest(state, action) {
       state.status = action.type;
     },
@@ -87,6 +87,30 @@ const ProfileSlice = createSlice({
       state.error = action.error;
       state.status = action.type;
     },
+
+    paybyCashRequest(state, action) {
+      state.status = action.type;
+    },
+    paybyCashSuccess(state, action) {
+      state.paybyCashResponse = action.payload;
+      state.status = action.type;
+    },
+    paybyCashFailure(state, action) {
+      state.error = action.error;
+      state.status = action.type;
+    },
+
+    getWardListRequest(state, action) {
+      state.status = action.type;
+    },
+    getWardListSuccess(state, action) {
+      state.getWardListResponse = action.payload;
+      state.status = action.type;
+    },
+    getWardListFailure(state, action) {
+      state.error = action.error;
+      state.status = action.type;
+    },
   },
 });
 
@@ -115,7 +139,13 @@ export const {
   verifyPaymentSuccess,
   verifyPaymentFailure,
 
+  paybyCashRequest,
+  paybyCashSuccess,
+  paybyCashFailure,
 
+  getWardListRequest,
+  getWardListSuccess,
+  getWardListFailure,
 } = ProfileSlice.actions;
 
 export default ProfileSlice.reducer;

@@ -92,6 +92,7 @@ const BottomTabNav = () => {
         }}
       />
 
+
       <Tab.Screen
         name="Home"
         component={Home}

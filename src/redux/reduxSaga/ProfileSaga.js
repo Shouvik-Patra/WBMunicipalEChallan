@@ -20,6 +20,10 @@ import {
   razorPayCreateOrderIDFailure,
   verifyPaymentFailure,
   verifyPaymentSuccess,
+  paybyCashSuccess,
+  paybyCashFailure,
+  getWardListSuccess,
+  getWardListFailure,
 } from '../reducer/ProfileReducer';
 import showErrorAlert from '../../utils/helpers/Toast';
 import {
@@ -237,7 +241,68 @@ export function* verifyPaymentSaga(action) {
     // showErrorAlert(error?.response?.data?.meta?.message);
   }
 }
+export function* payByCashSaga(action) {
+  let items = yield select(getItem);
 
+  try {
+    let Header = {
+      Accept: 'application/json',
+      contenttype: 'application/json',
+      accesstoken: items?.getTokenResponse,
+    };
+
+    const response = yield call(
+      postApi,
+      'challans/cash-payment',
+      action.payload,
+      Header,
+    );
+
+    if (response?.data?.meta?.code == 200) {
+      yield put(paybyCashSuccess(response?.data?.data));
+      // showErrorAlert(response?.data?.meta?.message);
+      ShowMessage(response?.data?.meta?.message, 'success');
+    } else {
+      yield put(paybyCashFailure(response?.data?.data));
+      // showErrorAlert(response?.data?.meta?.message);
+      
+      ShowMessage(response?.data?.meta?.message, 'error');
+    }
+  } catch (error) {
+    console.log("payByCashSaga",error);
+    
+    yield put(paybyCashFailure(error?.response?.data));
+    // showErrorAlert(error?.response?.data?.meta?.message);
+  }
+}
+export function* getWardListSaga(action) {
+  let items = yield select(getItem);
+
+  let header = {
+    Accept: 'application/json',
+    contenttype: 'application/json',
+    accesstoken: items?.getTokenResponse,
+  };
+  try {
+    let response = yield call(getApi, `get-wards/${action.payload}`, header);
+
+    if (response?.data?.meta?.code == 200) {
+      yield put(getWardListSuccess(response?.data?.data));
+    } else {
+      yield put(getWardListFailure(response?.data));
+      showErrorAlert(response?.data?.meta?.message);
+    }
+  } catch (error) {
+    console.log('error>>>>>>>>>>', error);
+
+    yield put(getWardListFailure(error?.response?.data));
+    if (error?.response?.data?.meta?.message == 'Token is invalid or expired') {
+      yield call(AsyncStorage.removeItem, constants.TOKEN);
+      yield put(getTokenSuccess(null));
+      yield put(logoutSuccess());
+    }
+  }
+}
 const watchFunction = [
   (function* () {
     yield takeLatest('Profile/userDetailsRequest', userDetailsSaga);
@@ -256,6 +321,12 @@ const watchFunction = [
   })(),
   (function* () {
     yield takeLatest('Profile/verifyPaymentRequest', verifyPaymentSaga);
+  })(),
+  (function* () {
+    yield takeLatest('Profile/paybyCashRequest', payByCashSaga);
+  })(),
+  (function* () {
+    yield takeLatest('Profile/getWardListRequest', getWardListSaga);
   })(),
 ];
 
