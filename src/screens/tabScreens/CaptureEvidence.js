@@ -76,7 +76,7 @@ const getLocation = () =>
       },
       // maximumAge bumped up so a recently-cached fix (if the OS has one) can
       // be reused instantly instead of always forcing a fresh GPS lock.
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 10000 },
     );
   });
 
